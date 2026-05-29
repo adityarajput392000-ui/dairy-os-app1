@@ -1,6 +1,8 @@
 "use client";
 
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { database } from '@/lib/firebase';
+import { ref, onValue, set, push, update } from 'firebase/database';
 
 export type TransactionType = 'INFLOW' | 'OUTFLOW' | 'SPOILAGE' | 'EXPENSE';
 
@@ -26,6 +28,15 @@ export interface Supplier {
   type: string;
 }
 
+export interface PendingRequest {
+  id: string;
+  type: 'SUPPLIER' | 'BANDI';
+  name: string;
+  milkType?: string; // For suppliers
+  expectedLiters?: number; // For bandis
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+}
+
 interface DairyState {
   rawMilk: number;
   matha: number;
@@ -34,9 +45,12 @@ interface DairyState {
   transactions: Transaction[];
   bandis: Bandi[];
   suppliers: Supplier[];
+  pendingRequests: PendingRequest[];
   addTransaction: (tx: Omit<Transaction, 'id' | 'timestamp'>) => void;
   updateBandiStatus: (name: string, received: boolean) => void;
   addSupplier: (name: string, type: string) => void;
+  requestAddition: (req: Omit<PendingRequest, 'id' | 'status'>) => void;
+  resolveRequest: (id: string, approve: boolean) => void;
 }
 
 const initialState: DairyState = {
@@ -55,53 +69,121 @@ const initialState: DairyState = {
     { id: '3', name: 'Dharmendra', type: 'Cow' },
     { id: '4', name: 'Mahesh', type: 'Mixed' },
   ],
+  pendingRequests: [],
   addTransaction: () => {},
   updateBandiStatus: () => {},
-  addSupplier: () => {}
+  addSupplier: () => {},
+  requestAddition: () => {},
+  resolveRequest: () => {}
 };
 
 const DairyContext = createContext<DairyState>(initialState);
 
 export const DairyProvider = ({ children }: { children: ReactNode }) => {
-  const [rawMilk, setRawMilk] = useState(initialState.rawMilk);
-  const [matha, setMatha] = useState(initialState.matha);
-  const [polythene, setPolythene] = useState(initialState.polythene);
-  const [gallaBalance, setGallaBalance] = useState(initialState.gallaBalance);
-  const [transactions, setTransactions] = useState<Transaction[]>(initialState.transactions);
-  const [bandis, setBandis] = useState<Bandi[]>(initialState.bandis);
-  const [suppliers, setSuppliers] = useState<Supplier[]>(initialState.suppliers);
+  const [rawMilk, setRawMilk] = useState(0);
+  const [matha, setMatha] = useState(0);
+  const [polythene, setPolythene] = useState(0);
+  const [gallaBalance, setGallaBalance] = useState(0);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [bandis, setBandis] = useState<Bandi[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
+
+  // FIREBASE SYNC
+  useEffect(() => {
+    const unsubrawMilk = onValue(ref(database, 'rawMilk'), snap => setRawMilk(snap.val() || 0));
+    const unsubMatha = onValue(ref(database, 'matha'), snap => setMatha(snap.val() || 0));
+    const unsubPoly = onValue(ref(database, 'polythene'), snap => setPolythene(snap.val() || 0));
+    const unsubGalla = onValue(ref(database, 'gallaBalance'), snap => setGallaBalance(snap.val() || 0));
+
+    const unsubTx = onValue(ref(database, 'transactions'), snap => {
+      const data = snap.val();
+      if (data) {
+        // Sort descending by timestamp
+        const txs = Object.values(data) as Transaction[];
+        setTransactions(txs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+      } else {
+        setTransactions([]);
+      }
+    });
+
+    const unsubBandis = onValue(ref(database, 'bandis'), snap => {
+      const data = snap.val();
+      setBandis(data ? Object.values(data) : initialState.bandis); // fallback to initial for demo if empty
+    });
+
+    const unsubSuppliers = onValue(ref(database, 'suppliers'), snap => {
+      const data = snap.val();
+      setSuppliers(data ? Object.values(data) : initialState.suppliers);
+    });
+
+    const unsubPending = onValue(ref(database, 'pendingRequests'), snap => {
+      const data = snap.val();
+      setPendingRequests(data ? Object.values(data) : []);
+    });
+
+    return () => {
+      unsubrawMilk(); unsubMatha(); unsubPoly(); unsubGalla();
+      unsubTx(); unsubBandis(); unsubSuppliers(); unsubPending();
+    };
+  }, []);
+
+  const requestAddition = (req: Omit<PendingRequest, 'id' | 'status'>) => {
+    const newRef = push(ref(database, 'pendingRequests'));
+    set(newRef, { ...req, id: newRef.key, status: 'PENDING' });
+  };
+
+  const resolveRequest = (id: string, approve: boolean) => {
+    const req = pendingRequests.find(p => p.id === id);
+    if (req && approve) {
+      if (req.type === 'SUPPLIER') {
+        addSupplier(req.name, req.milkType || 'Mixed');
+      } else if (req.type === 'BANDI') {
+        const newBandiRef = push(ref(database, 'bandis'));
+        set(newBandiRef, { name: req.name, expectedLiters: req.expectedLiters || 0, receivedToday: false });
+      }
+    }
+    set(ref(database, `pendingRequests/${id}`), null); // Delete request
+  };
 
   const addSupplier = (name: string, type: string) => {
-    setSuppliers(prev => [...prev, { id: Math.random().toString(36).substring(7), name, type }]);
+    const newRef = push(ref(database, 'suppliers'));
+    set(newRef, { id: newRef.key, name, type });
   };
 
   const updateBandiStatus = (name: string, received: boolean) => {
-    setBandis(prev => prev.map(b => b.name === name ? { ...b, receivedToday: received } : b));
+    // Find the bandi key
+    const bandiEntry = Object.entries(bandis).find(([_, b]) => b.name === name);
+    // Note: since we store bandis directly without IDs in the initial state, 
+    // a production app would use unique keys. For now we just rewrite the whole array to Firebase
+    const updatedBandis = bandis.map(b => b.name === name ? { ...b, receivedToday: received } : b);
+    set(ref(database, 'bandis'), updatedBandis);
   };
 
   const addTransaction = (tx: Omit<Transaction, 'id' | 'timestamp'>) => {
+    const newRef = push(ref(database, 'transactions'));
     const newTx: Transaction = {
       ...tx,
-      id: Math.random().toString(36).substring(7),
+      id: newRef.key as string,
       timestamp: new Date().toISOString()
     };
+    
+    set(newRef, newTx);
 
-    setTransactions(prev => [newTx, ...prev]);
-
-    // Update inventory/balances based on transaction type
+    // Update balances atomically (simplified)
     if (tx.type === 'INFLOW') {
-      setRawMilk(prev => prev + (tx.volume || 0));
+      set(ref(database, 'rawMilk'), rawMilk + (tx.volume || 0));
     } else if (tx.type === 'OUTFLOW') {
-      setRawMilk(prev => prev - (tx.volume || 0));
+      set(ref(database, 'rawMilk'), rawMilk - (tx.volume || 0));
       if (tx.amount) {
-        setGallaBalance(prev => prev + (tx.amount || 0)); // Cash collected from Bandi
+        set(ref(database, 'gallaBalance'), gallaBalance + tx.amount);
       }
       updateBandiStatus(tx.entity, true);
     } else if (tx.type === 'SPOILAGE') {
-      setRawMilk(prev => prev - (tx.volume || 0));
-      setMatha(prev => prev + (tx.volume || 0)); // 1:1 conversion for simplicity
+      set(ref(database, 'rawMilk'), rawMilk - (tx.volume || 0));
+      set(ref(database, 'matha'), matha + (tx.volume || 0));
     } else if (tx.type === 'EXPENSE') {
-      setGallaBalance(prev => prev - (tx.amount || 0));
+      set(ref(database, 'gallaBalance'), gallaBalance - (tx.amount || 0));
     }
   };
 
@@ -114,9 +196,12 @@ export const DairyProvider = ({ children }: { children: ReactNode }) => {
       transactions,
       bandis,
       suppliers,
+      pendingRequests,
       addTransaction,
       updateBandiStatus,
-      addSupplier
+      addSupplier,
+      requestAddition,
+      resolveRequest
     }}>
       {children}
     </DairyContext.Provider>

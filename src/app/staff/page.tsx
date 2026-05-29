@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useDairy } from '@/context/DairyContext';
 
 export default function StaffApp() {
-  const { addTransaction, bandis, suppliers } = useDairy();
+  const { addTransaction, bandis, suppliers, requestAddition } = useDairy();
   const [activeSection, setActiveSection] = useState<string | null>(null);
 
   // Inflow State
@@ -22,6 +22,22 @@ export default function StaffApp() {
   const [expensePerson, setExpensePerson] = useState('');
   const [expenseReason, setExpenseReason] = useState('');
   const [expenseAmount, setExpenseAmount] = useState('');
+
+  // Request State
+  const [requestMode, setRequestMode] = useState<null | 'SUPPLIER' | 'BANDI'>(null);
+  const [reqName, setReqName] = useState('');
+  const [reqDetail, setReqDetail] = useState(''); // Type for supplier, Liters for bandi
+
+  const handleRequest = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (requestMode === 'SUPPLIER') {
+      requestAddition({ type: 'SUPPLIER', name: reqName, milkType: reqDetail || 'Mixed' });
+    } else {
+      requestAddition({ type: 'BANDI', name: reqName, expectedLiters: Number(reqDetail) });
+    }
+    setReqName(''); setReqDetail(''); setRequestMode(null);
+    alert('Request sent to Owner for approval!');
+  };
 
   const handleInflow = (e: React.FormEvent) => {
     e.preventDefault();
@@ -197,6 +213,32 @@ export default function StaffApp() {
                 <input type="number" className="form-control" required value={expenseAmount} onChange={e => setExpenseAmount(e.target.value)} />
               </div>
               <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Deduct from Galla</button>
+            </form>
+          )}
+        </div>
+
+        {/* REQUEST NEW */}
+        <div className="card" style={{ marginTop: '24px' }}>
+          <h2 style={{ fontSize: '1rem', marginBottom: '16px' }}>Need to add someone new?</h2>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button onClick={() => setRequestMode('SUPPLIER')} className="btn btn-outline" style={{ flex: 1, fontSize: '0.875rem' }}>Request Supplier</button>
+            <button onClick={() => setRequestMode('BANDI')} className="btn btn-outline" style={{ flex: 1, fontSize: '0.875rem' }}>Request Bandi</button>
+          </div>
+
+          {requestMode && (
+            <form onSubmit={handleRequest} style={{ marginTop: '16px', padding: '16px', background: 'var(--bg-color)', borderRadius: 'var(--radius-md)' }}>
+              <div className="form-group">
+                <label className="form-label">{requestMode === 'SUPPLIER' ? 'Supplier Name' : 'Bandi Name'}</label>
+                <input type="text" className="form-control" required value={reqName} onChange={e => setReqName(e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">{requestMode === 'SUPPLIER' ? 'Milk Type (Cow/Buffalo/Mixed)' : 'Expected Liters'}</label>
+                <input type={requestMode === 'SUPPLIER' ? 'text' : 'number'} className="form-control" required value={reqDetail} onChange={e => setReqDetail(e.target.value)} />
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button type="submit" className="btn btn-primary" style={{ flex: 2 }}>Send Request</button>
+                <button type="button" onClick={() => setRequestMode(null)} className="btn btn-outline" style={{ flex: 1 }}>Cancel</button>
+              </div>
             </form>
           )}
         </div>

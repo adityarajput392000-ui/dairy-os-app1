@@ -4,9 +4,14 @@ import { useState } from "react";
 import { useDairy } from "@/context/DairyContext";
 
 export default function Dashboard() {
-  const { rawMilk, matha, polythene, gallaBalance, bandis, transactions, addSupplier, suppliers } = useDairy();
+  const { rawMilk, matha, polythene, gallaBalance, bandis, transactions, addSupplier, suppliers, pendingRequests, resolveRequest } = useDairy();
   const [newSupplierName, setNewSupplierName] = useState("");
   const [newSupplierType, setNewSupplierType] = useState("Buffalo");
+  
+  // Owner Auth State
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [pin, setPin] = useState("");
+  const OWNER_PIN = "1234"; // Default PIN for testing
 
   const handleAddSupplier = (e: React.FormEvent) => {
     e.preventDefault();
@@ -16,6 +21,33 @@ export default function Dashboard() {
       alert("Supplier added successfully!");
     }
   };
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pin === OWNER_PIN) setIsAuthenticated(true);
+    else alert("Incorrect PIN!");
+  };
+
+  if (!isAuthenticated) {
+    return (
+      <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '80vh' }}>
+        <div className="card" style={{ maxWidth: '400px', width: '100%', textAlign: 'center' }}>
+          <h2 className="text-gradient" style={{ marginBottom: '24px' }}>Owner Access</h2>
+          <form onSubmit={handleLogin}>
+            <input 
+              type="password" 
+              className="form-control" 
+              placeholder="Enter PIN (1234)" 
+              value={pin}
+              onChange={e => setPin(e.target.value)}
+              style={{ textAlign: 'center', fontSize: '1.5rem', letterSpacing: '4px', marginBottom: '16px' }}
+              required 
+            />
+            <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Unlock Dashboard</button>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in">
@@ -46,6 +78,30 @@ export default function Dashboard() {
       </div>
 
       <div className="grid-dashboard" style={{ gridTemplateColumns: '1fr 1fr' }}>
+        
+        {/* PENDING APPROVALS */}
+        {pendingRequests.length > 0 && (
+          <div className="card" style={{ gridColumn: '1 / -1', borderColor: 'var(--accent-color)' }}>
+            <h2 style={{ color: 'var(--accent-color)' }}>🔔 Pending Approvals from Staff</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '16px' }}>
+              {pendingRequests.map(req => (
+                <div key={req.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: 'var(--bg-color)', borderRadius: 'var(--radius-md)' }}>
+                  <div>
+                    <div style={{ fontWeight: 500 }}>{req.type === 'SUPPLIER' ? 'New Supplier' : 'New Bandi'}</div>
+                    <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                      Name: <strong>{req.name}</strong> • Detail: {req.milkType || `${req.expectedLiters}L`}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button onClick={() => resolveRequest(req.id, true)} className="btn btn-primary" style={{ padding: '8px 16px' }}>Approve</button>
+                    <button onClick={() => resolveRequest(req.id, false)} className="btn btn-outline" style={{ padding: '8px 16px' }}>Reject</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="card">
           <h2>Bandi Automation Tracking</h2>
           <p className="form-label" style={{ marginBottom: '16px' }}>Status of milk delivery to vendors today</p>
@@ -73,10 +129,10 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="card">
-          <h2>Recent Activity</h2>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '16px' }}>
-            {transactions.slice(0, 5).map(tx => (
+        <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
+          <h2>All Transactions Log</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '16px', maxHeight: '400px', overflowY: 'auto', paddingRight: '8px' }}>
+            {transactions.map(tx => (
               <div key={tx.id} style={{
                 display: 'flex', justifyContent: 'space-between',
                 paddingBottom: '12px', borderBottom: '1px solid var(--border-color)'
@@ -84,7 +140,7 @@ export default function Dashboard() {
                 <div>
                   <div style={{ fontWeight: 500 }}>{tx.type} - {tx.entity}</div>
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                    {new Date(tx.timestamp).toLocaleTimeString()}
+                    {new Date(tx.timestamp).toLocaleTimeString()} {tx.notes ? `• ${tx.notes}` : ''}
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
