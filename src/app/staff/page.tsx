@@ -1,173 +1,145 @@
-"use client";
-
-import { useState } from 'react';
+'use client';
+import { useState, useEffect } from 'react';
 import { useDairy } from '@/context/DairyContext';
 
+type ModalState = null | 'INFLOW' | 'OUTFLOW' | 'PROCESSING' | 'KHATA';
+
 export default function StaffApp() {
-  const { addTransaction, bandis, suppliers, requestAddition } = useDairy();
-  const [activeSection, setActiveSection] = useState<string | null>(null);
+  const { addTransaction, bandis, suppliers } = useDairy();
+  const [activeModal, setActiveModal] = useState<ModalState>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Form State
   const [product, setProduct] = useState<'Raw Milk' | 'Paneer' | 'Mattar' | 'Matha' | 'Ghee'>('Raw Milk');
-  
-  const [selectedSupplier, setSelectedSupplier] = useState("");
-  const [selectedBandi, setSelectedBandi] = useState("");
-  const [volume, setVolume] = useState("");
-  const [amount, setAmount] = useState("");
+  const [entity, setEntity] = useState('');
+  const [volume, setVolume] = useState('');
+  const [amount, setAmount] = useState('');
+  const [notes, setNotes] = useState('');
 
-  // Expense State
-  const [expensePerson, setExpensePerson] = useState('');
-  const [expenseReason, setExpenseReason] = useState('');
-  const [expenseAmount, setExpenseAmount] = useState('');
-
-  // Request State
-  const [requestMode, setRequestMode] = useState<null | 'SUPPLIER' | 'BANDI'>(null);
-  const [reqName, setReqName] = useState('');
-  const [reqDetail, setReqDetail] = useState('');
-
-  const handleRequest = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (requestMode === 'SUPPLIER') {
-      requestAddition({ type: 'SUPPLIER', name: reqName, milkType: reqDetail || 'Mixed' });
-    } else {
-      requestAddition({ type: 'BANDI', name: reqName, expectedLiters: Number(reqDetail) });
-    }
-    setReqName(''); setReqDetail(''); setRequestMode(null);
-    alert('Request sent to Owner for approval!');
+  // Close modal and reset state
+  const closeModal = () => {
+    setActiveModal(null);
+    setProduct('Raw Milk');
+    setEntity('');
+    setVolume('');
+    setAmount('');
+    setNotes('');
   };
 
-  const handleInflow = (e: React.FormEvent) => {
-    e.preventDefault();
-    addTransaction({
-      type: 'INFLOW',
-      entity: product === 'Raw Milk' ? selectedSupplier : 'Factory/Purchase',
-      item: product,
-      volume: Number(volume),
-    });
-    setVolume("");
-    alert(`${product} Inflow Logged!`);
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 2000);
   };
 
-  const handleQuickDispatch = (bandiName: string, liters: number) => {
-    addTransaction({ type: 'OUTFLOW', entity: bandiName, volume: liters });
-    alert(`${bandiName} dispatched successfully!`);
-  };
-
-  const handleOutflow = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    addTransaction({ 
-        type: 'OUTFLOW', 
-        entity: product === 'Raw Milk' ? selectedBandi : 'Direct Sale', 
+    if (activeModal === 'INFLOW') {
+      addTransaction({
+        type: 'INFLOW',
+        entity: product === 'Raw Milk' ? entity : 'Factory/Purchase',
         item: product,
         volume: Number(volume),
-        amount: Number(amount) || 0
-    });
-    setVolume(''); setAmount('');
-    setActiveSection(null);
-    alert('Dispatch Logged Successfully');
-  };
-
-  const handleSpoilage = (e: React.FormEvent) => {
-    e.preventDefault();
-    addTransaction({ type: 'SPOILAGE', entity: 'Spoilage Conversion', volume: Number(volume) });
-    setVolume('');
-    setActiveSection(null);
-    alert('Spoilage Converted to Matha Successfully');
-  };
-
-  const handleExpense = (e: React.FormEvent) => {
-    e.preventDefault();
-    addTransaction({ type: 'EXPENSE', entity: `${expensePerson} (${expenseReason})`, amount: Number(expenseAmount) });
-    setExpensePerson(''); setExpenseReason(''); setExpenseAmount('');
-    setActiveSection(null);
-    alert('Expense Logged Successfully');
+      });
+      showToast(`${product} Inflow Logged!`);
+    } else if (activeModal === 'OUTFLOW') {
+      addTransaction({
+        type: 'OUTFLOW',
+        entity: product === 'Raw Milk' ? entity : 'Retail Sale',
+        item: product,
+        volume: Number(volume),
+        amount: Number(amount) || undefined,
+      });
+      showToast(`${product} Outflow Logged!`);
+    } else if (activeModal === 'PROCESSING') {
+      addTransaction({
+        type: 'SPOILAGE',
+        entity: 'Spoilage Conversion',
+        item: product,
+        volume: Number(volume),
+      });
+      showToast(`${product} Processing Logged!`);
+    } else if (activeModal === 'KHATA') {
+      addTransaction({
+        type: 'ADVANCE',
+        entity: entity,
+        amount: Number(amount),
+        notes: notes,
+      });
+      showToast(`Khata Advance Logged!`);
+    }
+    closeModal();
   };
 
   return (
-    <div className="animate-fade-in" style={{ maxWidth: '600px', margin: '0 auto' }}>
-      <h1 className="text-gradient" style={{ textAlign: 'center', marginBottom: '32px' }}>Staff Data Entry</h1>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        
-        {/* MILK RECEIVED */}
-        <div className="card">
-          <button className="btn btn-outline" style={{ width: '100%', justifyContent: 'space-between' }}
-            onClick={() => setActiveSection(activeSection === 'INFLOW' ? null : 'INFLOW')}>
-            <span>🥛 Milk Received (Village)</span>
-            <span>{activeSection === 'INFLOW' ? '▲' : '▼'}</span>
-          </button>
-          
-          {activeSection === 'INFLOW' && (
-            <div className="card" style={{ marginTop: '24px' }}>
-              <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                🥛 Log Inflow (Receive)
-              </h2>
-              
-              <div className="form-group" style={{ marginTop: '16px' }}>
-                <label className="form-label">Select Product</label>
-                <select className="form-control form-select" value={product} onChange={e => setProduct(e.target.value as any)}>
-                  <option value="Raw Milk">Raw Milk (L)</option>
-                  <option value="Paneer">Paneer (Kg)</option>
-                  <option value="Matha">Matha (L)</option>
-                  <option value="Ghee">Ghee (Kg)</option>
-                  <option value="Mattar">Safal Mattar (Kg)</option>
-                </select>
-              </div>
-
-              {product === 'Raw Milk' && (
-                <div className="form-group">
-                  <label className="form-label">Select Supplier</label>
-                  <select className="form-control form-select" value={selectedSupplier} onChange={e => setSelectedSupplier(e.target.value)}>
-                    <option value="">Select...</option>
-                    {suppliers.map(s => (
-                      <option key={s.id} value={s.name}>{s.name} ({s.type})</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              <div className="form-group">
-                <label className="form-label">Quantity ({product === 'Raw Milk' || product === 'Matha' ? 'Liters' : 'Kg'})</label>
-                <input type="number" className="form-control" value={volume} onChange={e => setVolume(e.target.value)} />
-              </div>
-
-              <button onClick={handleInflow} className="btn btn-primary" style={{ width: '100%' }}>Submit Inflow</button>
-            </div>
-          )}
+    <div style={{ padding: '24px', maxWidth: '600px', margin: '0 auto', height: '100vh', display: 'flex', flexDirection: 'column' }}>
+      
+      {/* SUCCESS TOAST */}
+      {toastMessage && (
+        <div className="toast-success">
+          {toastMessage}
         </div>
+      )}
 
-        {/* MILK DISPATCH */}
-        <div className="card">
-          <button className="btn btn-outline" style={{ width: '100%', justifyContent: 'space-between' }}
-            onClick={() => setActiveSection(activeSection === 'OUTFLOW' ? null : 'OUTFLOW')}>
-            <span>🚚 Milk Sent (Bandi)</span>
-            <span>{activeSection === 'OUTFLOW' ? '▲' : '▼'}</span>
-          </button>
+      {/* HEADER */}
+      <div style={{ textAlign: 'center', marginBottom: '40px', marginTop: '20px' }}>
+        <h1 style={{ fontSize: '2rem', fontWeight: '900', color: 'var(--text-color)', letterSpacing: '-1px' }}>DATA GATEWAY</h1>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '1rem' }}>Select an operation to begin</p>
+      </div>
+
+      {/* 4 PRIMARY GATEWAY BUTTONS */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', flex: 1 }}>
+        
+        <button onClick={() => setActiveModal('INFLOW')} 
+          style={{ padding: '24px', borderRadius: '16px', background: '#10b981', color: 'white', border: 'none', fontSize: '1.25rem', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 12px rgba(16,185,129,0.3)' }}>
+          <span>1. Milk Received (Inflow)</span>
+          <span style={{ fontSize: '1.5rem' }}>+</span>
+        </button>
+
+        <button onClick={() => setActiveModal('OUTFLOW')} 
+          style={{ padding: '24px', borderRadius: '16px', background: '#3b82f6', color: 'white', border: 'none', fontSize: '1.25rem', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 12px rgba(59,130,246,0.3)' }}>
+          <span>2. Milk Distributed (Outflow)</span>
+          <span style={{ fontSize: '1.5rem' }}>↗</span>
+        </button>
+
+        <button onClick={() => setActiveModal('PROCESSING')} 
+          style={{ padding: '24px', borderRadius: '16px', background: '#f59e0b', color: 'white', border: 'none', fontSize: '1.25rem', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 12px rgba(245,158,11,0.3)' }}>
+          <span>3. Processing & Spoilage</span>
+          <span style={{ fontSize: '1.5rem' }}>⟳</span>
+        </button>
+
+        <button onClick={() => setActiveModal('KHATA')} 
+          style={{ padding: '24px', borderRadius: '16px', background: '#ef4444', color: 'white', border: 'none', fontSize: '1.25rem', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 12px rgba(239,68,68,0.3)' }}>
+          <span>4. Khata (Cash Advances)</span>
+          <span style={{ fontSize: '1.5rem' }}>₹</span>
+        </button>
+      </div>
+
+      {/* SLIDE-UP MODAL OVERLAY */}
+      {activeModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 999 }} onClick={closeModal}>
           
-          {activeSection === 'OUTFLOW' && (
-            <div style={{ marginTop: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <p className="form-label">Quick Dispatch (Defaults)</p>
-              
-              {bandis.map(b => (
-                <div key={b.name} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <button 
-                    disabled={b.receivedToday}
-                    onClick={() => handleQuickDispatch(b.name, b.expectedLiters)}
-                    className="btn btn-outline" 
-                    style={{ flex: 1, borderColor: b.receivedToday ? 'var(--accent-color)' : '', color: b.receivedToday ? 'var(--accent-color)' : '' }}>
-                    {b.receivedToday ? `✅ ${b.name} (${b.expectedLiters}L)` : `Dispatch ${b.name} (${b.expectedLiters}L)`}
-                  </button>
-                </div>
-              ))}
+          {/* SLIDE-UP MODAL CONTENT */}
+          <div className="slide-up-modal" onClick={e => e.stopPropagation()} 
+            style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'var(--card-bg)', borderTopLeftRadius: '24px', borderTopRightRadius: '24px', padding: '32px 24px', boxShadow: '0 -4px 24px rgba(0,0,0,0.2)' }}>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+              <h2 style={{ margin: 0, fontSize: '1.5rem' }}>
+                {activeModal === 'INFLOW' && 'Log Inflow'}
+                {activeModal === 'OUTFLOW' && 'Log Outflow'}
+                {activeModal === 'PROCESSING' && 'Log Processing'}
+                {activeModal === 'KHATA' && 'Khata Advance'}
+              </h2>
+              <button onClick={closeModal} style={{ background: 'transparent', border: 'none', fontSize: '1.5rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>✕</button>
+            </div>
 
-              <hr style={{ borderColor: 'var(--border-color)', margin: '16px 0' }} />
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               
-              <div className="card" style={{ marginTop: '24px' }}>
-                <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  🚚 Log Outflow (Dispatch / Sale)
-                </h2>
-
-                <div className="form-group" style={{ marginTop: '16px' }}>
-                  <label className="form-label">Select Product</label>
-                  <select className="form-control form-select" value={product} onChange={e => setProduct(e.target.value as any)}>
+              {/* Product Selector (Hide for Khata) */}
+              {activeModal !== 'KHATA' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label style={{ fontWeight: 'bold', color: 'var(--text-secondary)' }}>Product Type</label>
+                  <select required value={product} onChange={e => setProduct(e.target.value as any)} 
+                    style={{ padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-color)', fontSize: '1.1rem' }}>
                     <option value="Raw Milk">Raw Milk (L)</option>
                     <option value="Paneer">Paneer (Kg)</option>
                     <option value="Matha">Matha (L)</option>
@@ -175,121 +147,72 @@ export default function StaffApp() {
                     <option value="Mattar">Safal Mattar (Kg)</option>
                   </select>
                 </div>
-                
-                {product === 'Raw Milk' && (
-                  <div className="form-group">
-                    <label className="form-label">Select Bandi (Vendor)</label>
-                    <select className="form-control form-select" value={selectedBandi} onChange={e => setSelectedBandi(e.target.value)}>
-                      <option value="">Select...</option>
-                      {bandis.map((b, i) => (
-                        <option key={i} value={b.name}>{b.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
+              )}
 
-                <div className="form-group">
-                  <label className="form-label">Quantity ({product === 'Raw Milk' || product === 'Matha' ? 'Liters' : 'Kg'})</label>
-                  <input type="number" className="form-control" value={volume} onChange={e => setVolume(e.target.value)} />
+              {/* Entity Selector */}
+              {activeModal === 'INFLOW' && product === 'Raw Milk' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label style={{ fontWeight: 'bold', color: 'var(--text-secondary)' }}>Select Supplier</label>
+                  <select required value={entity} onChange={e => setEntity(e.target.value)} 
+                    style={{ padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-color)', fontSize: '1.1rem' }}>
+                    <option value="" disabled>Select Supplier...</option>
+                    {suppliers.map(s => <option key={s.id} value={s.name}>{s.name} ({s.type})</option>)}
+                  </select>
                 </div>
-                
-                <div className="form-group">
-                  <label className="form-label">Cash Received (₹) - Optional</label>
-                  <input type="number" className="form-control" value={amount} onChange={e => setAmount(e.target.value)} />
+              )}
+
+              {activeModal === 'OUTFLOW' && product === 'Raw Milk' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label style={{ fontWeight: 'bold', color: 'var(--text-secondary)' }}>Select Bandi (Vendor)</label>
+                  <select required value={entity} onChange={e => setEntity(e.target.value)} 
+                    style={{ padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-color)', fontSize: '1.1rem' }}>
+                    <option value="" disabled>Select Bandi...</option>
+                    {bandis.map((b, i) => <option key={i} value={b.name}>{b.name}</option>)}
+                  </select>
                 </div>
+              )}
 
-                <button onClick={handleOutflow} className="btn btn-primary" style={{ width: '100%' }}>Submit Outflow</button>
-              </div>
-            </div>
-          )}
-        </div>
+              {activeModal === 'KHATA' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label style={{ fontWeight: 'bold', color: 'var(--text-secondary)' }}>Person / Name</label>
+                  <input required type="text" value={entity} onChange={e => setEntity(e.target.value)} placeholder="e.g. Ramu Kaka"
+                    style={{ padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-color)', fontSize: '1.1rem' }} />
+                </div>
+              )}
 
-        {/* SPOILAGE */}
-        <div className="card">
-          <button className="btn btn-outline" style={{ width: '100%', justifyContent: 'space-between' }}
-            onClick={() => setActiveSection(activeSection === 'SPOILAGE' ? null : 'SPOILAGE')}>
-            <span>⚠️ Spoilage (Fata Doodh)</span>
-            <span>{activeSection === 'SPOILAGE' ? '▲' : '▼'}</span>
-          </button>
-          
-          {activeSection === 'SPOILAGE' && (
-            <form onSubmit={handleSpoilage} style={{ marginTop: '24px' }}>
-              <div className="form-group">
-                <label className="form-label">Fata Doodh Volume (Liters)</label>
-                <input type="number" className="form-control" required value={spoiledVolume} onChange={e => setSpoiledVolume(e.target.value)} />
-              </div>
-              <div className="form-group">
-                <p className="form-label" style={{ color: 'var(--accent-color)' }}>This will automatically convert into Matha inventory.</p>
-              </div>
-              <button type="submit" className="btn btn-danger" style={{ width: '100%' }}>Log Spoilage</button>
+              {/* Strict Numeric Inputs */}
+              {activeModal !== 'KHATA' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label style={{ fontWeight: 'bold', color: 'var(--text-secondary)' }}>Quantity ({product === 'Raw Milk' || product === 'Matha' ? 'Liters' : 'Kg'})</label>
+                  <input required type="number" inputMode="decimal" pattern="[0-9]*" value={volume} onChange={e => setVolume(e.target.value)} placeholder="0.0"
+                    style={{ padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-color)', fontSize: '1.5rem', fontWeight: 'bold' }} />
+                </div>
+              )}
+
+              {(activeModal === 'OUTFLOW' || activeModal === 'KHATA') && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label style={{ fontWeight: 'bold', color: 'var(--text-secondary)' }}>{activeModal === 'KHATA' ? 'Advance Amount (₹)' : 'Cash Received (₹) - Optional'}</label>
+                  <input required={activeModal === 'KHATA'} type="number" inputMode="decimal" pattern="[0-9]*" value={amount} onChange={e => setAmount(e.target.value)} placeholder="₹ 0"
+                    style={{ padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-color)', fontSize: '1.5rem', fontWeight: 'bold' }} />
+                </div>
+              )}
+
+              {activeModal === 'KHATA' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label style={{ fontWeight: 'bold', color: 'var(--text-secondary)' }}>Notes / Reason</label>
+                  <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="e.g. For cow feed"
+                    style={{ padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-color)', fontSize: '1.1rem' }} />
+                </div>
+              )}
+
+              <button type="submit" 
+                style={{ marginTop: '16px', padding: '20px', borderRadius: '12px', background: 'var(--text-color)', color: 'var(--bg-color)', border: 'none', fontSize: '1.25rem', fontWeight: 'bold', cursor: 'pointer' }}>
+                CONFIRM & SUBMIT
+              </button>
             </form>
-          )}
-        </div>
-
-        {/* EXPENSES / KHATA */}
-        <div className="card">
-          <button className="btn btn-outline" style={{ width: '100%', justifyContent: 'space-between' }}
-            onClick={() => setActiveSection(activeSection === 'EXPENSE' ? null : 'EXPENSE')}>
-            <span>💸 Cash Out (Khata/Expense)</span>
-            <span>{activeSection === 'EXPENSE' ? '▲' : '▼'}</span>
-          </button>
-          
-          {activeSection === 'EXPENSE' && (
-            <form onSubmit={handleExpense} style={{ marginTop: '24px' }}>
-              <div className="form-group">
-                <label className="form-label">Who is taking cash?</label>
-                <select className="form-control form-select" required value={expensePerson} onChange={e => setExpensePerson(e.target.value)}>
-                  <option value="" disabled>Select...</option>
-                  <option value="Sanjay">Sanjay</option>
-                  <option value="Dadda">Dadda</option>
-                  <option value="Shop">Shop Expense</option>
-                </select>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Reason</label>
-                <select className="form-control form-select" required value={expenseReason} onChange={e => setExpenseReason(e.target.value)}>
-                  <option value="" disabled>Select...</option>
-                  <option value="Nashta/Gutka">Nashta/Gutka</option>
-                  <option value="Cash Advance">Cash Advance</option>
-                  <option value="Petrol">Petrol</option>
-                </select>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Amount (₹)</label>
-                <input type="number" className="form-control" required value={expenseAmount} onChange={e => setExpenseAmount(e.target.value)} />
-              </div>
-              <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Deduct from Galla</button>
-            </form>
-          )}
-        </div>
-
-        {/* REQUEST NEW */}
-        <div className="card" style={{ marginTop: '24px' }}>
-          <h2 style={{ fontSize: '1rem', marginBottom: '16px' }}>Need to add someone new?</h2>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button onClick={() => setRequestMode('SUPPLIER')} className="btn btn-outline" style={{ flex: 1, fontSize: '0.875rem' }}>Request Supplier</button>
-            <button onClick={() => setRequestMode('BANDI')} className="btn btn-outline" style={{ flex: 1, fontSize: '0.875rem' }}>Request Bandi</button>
           </div>
-
-          {requestMode && (
-            <form onSubmit={handleRequest} style={{ marginTop: '16px', padding: '16px', background: 'var(--bg-color)', borderRadius: 'var(--radius-md)' }}>
-              <div className="form-group">
-                <label className="form-label">{requestMode === 'SUPPLIER' ? 'Supplier Name' : 'Bandi Name'}</label>
-                <input type="text" className="form-control" required value={reqName} onChange={e => setReqName(e.target.value)} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">{requestMode === 'SUPPLIER' ? 'Milk Type (Cow/Buffalo/Mixed)' : 'Expected Liters'}</label>
-                <input type={requestMode === 'SUPPLIER' ? 'text' : 'number'} className="form-control" required value={reqDetail} onChange={e => setReqDetail(e.target.value)} />
-              </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button type="submit" className="btn btn-primary" style={{ flex: 2 }}>Send Request</button>
-                <button type="button" onClick={() => setRequestMode(null)} className="btn btn-outline" style={{ flex: 1 }}>Cancel</button>
-              </div>
-            </form>
-          )}
         </div>
-
-      </div>
+      )}
     </div>
   );
 }

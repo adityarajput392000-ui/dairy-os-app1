@@ -132,17 +132,17 @@ export default function Dashboard() {
                   <td style={{ padding: '12px' }}>
                     <span style={{
                       padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold',
-                      background: tx.type === 'INFLOW' ? '#10b98120' : tx.type === 'OUTFLOW' ? '#3b82f620' : tx.type === 'EXPENSE' ? '#ef444420' : '#f59e0b20',
-                      color: tx.type === 'INFLOW' ? '#10b981' : tx.type === 'OUTFLOW' ? '#3b82f6' : tx.type === 'EXPENSE' ? '#ef4444' : '#f59e0b'
+                      background: tx.type === 'INFLOW' ? '#10b98120' : tx.type === 'OUTFLOW' ? '#3b82f620' : (tx.type === 'EXPENSE' || tx.type === 'ADVANCE') ? '#ef444420' : '#f59e0b20',
+                      color: tx.type === 'INFLOW' ? '#10b981' : tx.type === 'OUTFLOW' ? '#3b82f6' : (tx.type === 'EXPENSE' || tx.type === 'ADVANCE') ? '#ef4444' : '#f59e0b'
                     }}>
                       {tx.type}
                     </span>
                   </td>
-                  <td style={{ padding: '12px', fontWeight: 'bold', color: 'var(--text-secondary)' }}>{tx.item || 'Raw Milk'}</td>
+                  <td style={{ padding: '12px', fontWeight: 'bold', color: 'var(--text-secondary)' }}>{tx.type === 'ADVANCE' ? (tx.notes || 'Khata') : (tx.item || 'Raw Milk')}</td>
                   <td style={{ padding: '12px', fontWeight: 500 }}>{tx.entity}</td>
                   <td style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold' }}>{tx.volume ? `${tx.volume}` : '-'}</td>
-                  <td style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold', color: tx.type === 'EXPENSE' ? 'var(--danger-color)' : (tx.amount ? 'var(--success-color)' : 'inherit') }}>
-                    {tx.amount ? `₹${tx.amount}` : '-'}
+                  <td style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold', color: (tx.type === 'EXPENSE' || tx.type === 'ADVANCE') ? 'var(--danger-color)' : (tx.amount ? 'var(--success-color)' : 'inherit') }}>
+                    {(tx.type === 'EXPENSE' || tx.type === 'ADVANCE') ? `-₹${tx.amount}` : (tx.amount ? `₹${tx.amount}` : '-')}
                   </td>
                 </tr>
               ))}

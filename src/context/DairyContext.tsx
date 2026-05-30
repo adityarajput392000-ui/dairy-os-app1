@@ -4,16 +4,17 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { database } from '@/lib/firebase';
 import { ref, onValue, set, push, update } from 'firebase/database';
 
-export type TransactionType = 'INFLOW' | 'OUTFLOW' | 'SPOILAGE' | 'EXPENSE';
+export type TransactionType = 'INFLOW' | 'OUTFLOW' | 'SPOILAGE' | 'EXPENSE' | 'ADVANCE';
 
 export interface Transaction {
   id: string;
   type: TransactionType;
   entity: string;
-  volume?: number;
-  amount?: number;
+  volume?: number; // In Liters or Kg
+  amount?: number; // In Rupees
+  item?: string; // e.g., "Paneer", "Mattar"
+  notes?: string; // For khata advances or reasons
   timestamp: string;
-  notes?: string;
 }
 
 export interface Bandi {
@@ -240,7 +241,7 @@ export const DairyProvider = ({ children }: { children: ReactNode }) => {
         set(ref(database, 'rawMilk'), rawMilk - (tx.volume || 0));
         set(ref(database, 'matha'), matha + (tx.volume || 0));
       }
-    } else if (tx.type === 'EXPENSE') {
+    } else if (tx.type === 'EXPENSE' || tx.type === 'ADVANCE') {
       set(ref(database, 'gallaBalance'), gallaBalance - (tx.amount || 0));
     }
   };
