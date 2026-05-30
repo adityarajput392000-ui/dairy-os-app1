@@ -51,6 +51,7 @@ interface DairyState {
   addSupplier: (name: string, type: string) => void;
   requestAddition: (req: Omit<PendingRequest, 'id' | 'status'>) => void;
   resolveRequest: (id: string, approve: boolean) => void;
+  seedDatabase: () => void;
 }
 
 const initialState: DairyState = {
@@ -74,7 +75,8 @@ const initialState: DairyState = {
   updateBandiStatus: () => {},
   addSupplier: () => {},
   requestAddition: () => {},
-  resolveRequest: () => {}
+  resolveRequest: () => {},
+  seedDatabase: () => {}
 };
 
 const DairyContext = createContext<DairyState>(initialState);
@@ -160,6 +162,23 @@ export const DairyProvider = ({ children }: { children: ReactNode }) => {
     set(ref(database, 'bandis'), updatedBandis);
   };
 
+  const seedDatabase = () => {
+    // Only seed if empty
+    if (bandis.length === 0) {
+      initialState.bandis.forEach(b => {
+        const r = push(ref(database, 'bandis'));
+        set(r, b);
+      });
+    }
+    if (suppliers.length === 0) {
+      initialState.suppliers.forEach(s => {
+        const r = push(ref(database, 'suppliers'));
+        set(r, { id: r.key, name: s.name, type: s.type });
+      });
+    }
+    alert('Default database initialized! Please refresh your page.');
+  };
+
   const addTransaction = (tx: Omit<Transaction, 'id' | 'timestamp'>) => {
     const newRef = push(ref(database, 'transactions'));
     const newTx: Transaction = {
@@ -169,6 +188,18 @@ export const DairyProvider = ({ children }: { children: ReactNode }) => {
     };
     
     set(newRef, newTx);
+
+    // GOOGLE SHEETS WEBHOOK CALL (Fire and forget)
+    // We will hook this up when the user provides the webhook URL
+    const SHEETS_WEBHOOK_URL = process.env.NEXT_PUBLIC_SHEETS_WEBHOOK_URL;
+    if (SHEETS_WEBHOOK_URL) {
+      fetch(SHEETS_WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        mode: 'no-cors', // So it doesn't block on CORS from Apps Script
+        body: JSON.stringify(newTx)
+      }).catch(err => console.error("Sheets webhook failed", err));
+    }
 
     // Update balances atomically (simplified)
     if (tx.type === 'INFLOW') {
@@ -201,7 +232,8 @@ export const DairyProvider = ({ children }: { children: ReactNode }) => {
       updateBandiStatus,
       addSupplier,
       requestAddition,
-      resolveRequest
+      resolveRequest,
+      seedDatabase
     }}>
       {children}
     </DairyContext.Provider>

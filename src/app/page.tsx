@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useDairy } from "@/context/DairyContext";
 
 export default function Dashboard() {
-  const { rawMilk, matha, polythene, gallaBalance, bandis, transactions, addSupplier, suppliers, pendingRequests, resolveRequest } = useDairy();
+  const { rawMilk, matha, polythene, gallaBalance, bandis, transactions, addSupplier, suppliers, pendingRequests, resolveRequest, seedDatabase } = useDairy();
   const [newSupplierName, setNewSupplierName] = useState("");
   const [newSupplierType, setNewSupplierType] = useState("Buffalo");
   
@@ -49,31 +49,43 @@ export default function Dashboard() {
     );
   }
 
-  return (
-    <div className="animate-fade-in">
-      <h1 className="text-gradient">Command Dashboard</h1>
-      
-      <div className="grid-dashboard">
-        <div className="card stat-card">
-          <span className="stat-label">Net Galla Balance</span>
-          <span className={`stat-value ${gallaBalance >= 0 ? 'text-success' : 'text-danger'}`}>
-            ₹{gallaBalance.toLocaleString('en-IN')}
-          </span>
-        </div>
-        
-        <div className="card stat-card">
-          <span className="stat-label">Raw Milk Available</span>
-          <span className="stat-value">{rawMilk} L</span>
-        </div>
-        
-        <div className="card stat-card">
-          <span className="stat-label">Matha Yield</span>
-          <span className="stat-value">{matha} L</span>
-        </div>
+  // Calculate Totals for Today
+  const todayTransactions = transactions.filter(tx => new Date(tx.timestamp).toDateString() === new Date().toDateString());
+  const totalInflow = todayTransactions.filter(tx => tx.type === 'INFLOW').reduce((sum, tx) => sum + (tx.volume || 0), 0);
+  const totalOutflow = todayTransactions.filter(tx => tx.type === 'OUTFLOW').reduce((sum, tx) => sum + (tx.volume || 0), 0);
+  const totalExpenses = todayTransactions.filter(tx => tx.type === 'EXPENSE').reduce((sum, tx) => sum + (tx.amount || 0), 0);
 
-        <div className="card stat-card">
-          <span className="stat-label">Polythene Stock</span>
-          <span className="stat-value">{polythene} Units</span>
+  return (
+    <div className="animate-fade-in" style={{ maxWidth: '1000px', margin: '0 auto' }}>
+      <h1 className="text-gradient" style={{ textAlign: 'center', marginBottom: '8px' }}>Owner Analytics Dashboard</h1>
+      <p style={{ textAlign: 'center', color: 'var(--text-secondary)', marginBottom: '32px' }}>Live track record & ledger</p>
+
+      {/* DATABASE SETUP WARNING */}
+      {(suppliers.length === 0 || bandis.length === 0) && (
+        <div className="card" style={{ marginBottom: '24px', borderColor: 'var(--danger-color)' }}>
+          <h2 style={{ color: 'var(--danger-color)' }}>⚠️ Cloud Database is Empty</h2>
+          <p className="form-label" style={{ marginBottom: '16px' }}>Your staff cannot see any milkmen because the database is new. Click the button below to initialize the defaults.</p>
+          <button onClick={seedDatabase} className="btn btn-primary" style={{ width: '100%' }}>Initialize Default Data</button>
+        </div>
+      )}
+
+      {/* QUICK STATS */}
+      <div className="grid-dashboard" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', marginBottom: '24px' }}>
+        <div className="card" style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Today's Total Inflow</div>
+          <div className="text-gradient" style={{ fontSize: '2rem', fontWeight: 'bold' }}>{totalInflow} L</div>
+        </div>
+        <div className="card" style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Today's Total Outflow</div>
+          <div className="text-gradient" style={{ fontSize: '2rem', fontWeight: 'bold' }}>{totalOutflow} L</div>
+        </div>
+        <div className="card" style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Today's Expenses</div>
+          <div style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--danger-color)' }}>₹{totalExpenses}</div>
+        </div>
+        <div className="card" style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Live Cash Balance</div>
+          <div style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--success-color)' }}>₹{gallaBalance}</div>
         </div>
       </div>
 
@@ -126,32 +138,6 @@ export default function Dashboard() {
                 </div>
               </div>
             ))}
-          </div>
-        </div>
-
-        <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
-          <h2>All Transactions Log</h2>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '16px', maxHeight: '400px', overflowY: 'auto', paddingRight: '8px' }}>
-            {transactions.map(tx => (
-              <div key={tx.id} style={{
-                display: 'flex', justifyContent: 'space-between',
-                paddingBottom: '12px', borderBottom: '1px solid var(--border-color)'
-              }}>
-                <div>
-                  <div style={{ fontWeight: 500 }}>{tx.type} - {tx.entity}</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                    {new Date(tx.timestamp).toLocaleTimeString()} {tx.notes ? `• ${tx.notes}` : ''}
-                  </div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  {tx.volume && <div>{tx.volume} L</div>}
-                  {tx.amount && <div className={tx.type === 'INFLOW' || tx.type === 'OUTFLOW' ? 'text-success' : 'text-danger'}>
-                    ₹{tx.amount}
-                  </div>}
-                </div>
-              </div>
-            ))}
-            {transactions.length === 0 && <div className="form-label">No recent transactions.</div>}
           </div>
         </div>
 
