@@ -87,8 +87,8 @@ export const DairyProvider = ({ children }: { children: ReactNode }) => {
   const [polythene, setPolythene] = useState(0);
   const [gallaBalance, setGallaBalance] = useState(0);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [bandis, setBandis] = useState<Bandi[]>([]);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [bandis, setBandis] = useState<Bandi[]>(initialState.bandis);
+  const [suppliers, setSuppliers] = useState<Supplier[]>(initialState.suppliers);
   const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
 
   // FIREBASE SYNC
