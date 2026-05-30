@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useDairy } from "@/context/DairyContext";
 
 export default function Dashboard() {
-  const { rawMilk, matha, polythene, gallaBalance, paneer, mattar, ghee, bandis, transactions, addSupplier, suppliers, pendingRequests, resolveRequest, seedDatabase } = useDairy();
+  const { rawMilk, matha, polythene, gallaBalance, paneer, mattar, ghee, bandis, transactions, addSupplier, suppliers, pendingRequests, resolveRequest, seedDatabase, lastReconciledTimestamp, rateCard } = useDairy();
   const [newSupplierName, setNewSupplierName] = useState("");
   const [newSupplierType, setNewSupplierType] = useState("Buffalo");
   
@@ -46,12 +46,14 @@ export default function Dashboard() {
   const todayTransactions = transactions.filter(tx => new Date(tx.timestamp).toDateString() === new Date().toDateString());
   const totalInflow = todayTransactions.filter(tx => tx.type === 'INFLOW' && (!tx.item || tx.item === 'Raw Milk')).reduce((sum, tx) => sum + (tx.volume || 0), 0);
   const totalOutflowBandi = todayTransactions.filter(tx => tx.type === 'OUTFLOW' && (!tx.item || tx.item === 'Raw Milk')).reduce((sum, tx) => sum + (tx.volume || 0), 0);
-  const totalExpenses = todayTransactions.filter(tx => tx.type === 'EXPENSE').reduce((sum, tx) => sum + (tx.amount || 0), 0);
+  const totalExpenses = todayTransactions.filter(tx => tx.type === 'EXPENSE' || tx.type === 'ADVANCE').reduce((sum, tx) => sum + (tx.amount || 0), 0);
 
   return (
     <div className="animate-fade-in" style={{ maxWidth: '1000px', margin: '0 auto', paddingBottom: '40px' }}>
       <h1 className="text-gradient" style={{ textAlign: 'center', margin: '24px 0 8px 0' }}>Owner Analytics Dashboard</h1>
-      <p style={{ textAlign: 'center', color: 'var(--text-secondary)', marginBottom: '32px' }}>Live track record & ledger</p>
+      <p style={{ textAlign: 'center', color: 'var(--text-secondary)', marginBottom: '32px' }}>
+        Live track record & ledger • Last Reconciled: {new Date(lastReconciledTimestamp).toLocaleString()}
+      </p>
 
       {/* DATABASE SETUP WARNING */}
       {(suppliers.length === 0 || bandis.length === 0) && (
@@ -121,6 +123,7 @@ export default function Dashboard() {
                 <th style={{ padding: '12px' }}>Type</th>
                 <th style={{ padding: '12px' }}>Product</th>
                 <th style={{ padding: '12px' }}>Entity</th>
+                <th style={{ padding: '12px' }}>Operator</th>
                 <th style={{ padding: '12px', textAlign: 'right' }}>Qty</th>
                 <th style={{ padding: '12px', textAlign: 'right' }}>Cash (₹)</th>
               </tr>
@@ -138,8 +141,11 @@ export default function Dashboard() {
                       {tx.type}
                     </span>
                   </td>
-                  <td style={{ padding: '12px', fontWeight: 'bold', color: 'var(--text-secondary)' }}>{tx.type === 'ADVANCE' ? (tx.notes || 'Khata') : (tx.item || 'Raw Milk')}</td>
+                  <td style={{ padding: '12px', fontWeight: 'bold', color: 'var(--text-secondary)' }}>
+                    {tx.type === 'ADVANCE' ? (tx.notes || 'Khata') : (tx.type === 'SPOILAGE_DEDUCT' ? 'Spoilage Loss' : tx.type === 'CONVERSION_ADD' ? 'Converted Yield' : tx.type === 'WATER_ADDITION' ? 'Water Added' : (tx.item || 'Raw Milk'))}
+                  </td>
                   <td style={{ padding: '12px', fontWeight: 500 }}>{tx.entity}</td>
+                  <td style={{ padding: '12px', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>{tx.operatorId || 'Admin'}</td>
                   <td style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold' }}>{tx.volume ? `${tx.volume}` : '-'}</td>
                   <td style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold', color: (tx.type === 'EXPENSE' || tx.type === 'ADVANCE') ? 'var(--danger-color)' : (tx.amount ? 'var(--success-color)' : 'inherit') }}>
                     {(tx.type === 'EXPENSE' || tx.type === 'ADVANCE') ? `-₹${tx.amount}` : (tx.amount ? `₹${tx.amount}` : '-')}
@@ -226,12 +232,25 @@ export default function Dashboard() {
             <button type="submit" className="btn btn-outline" style={{ width: '100%' }}>Add Supplier</button>
           </form>
           
-          <h3 style={{ marginTop: '24px', fontSize: '1rem' }}>Active Suppliers</h3>
+          <h3 style={{ marginTop: '24px', fontSize: '1rem' }}>Active Suppliers (Khata Ledger)</h3>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '12px' }}>
             {suppliers.map(s => (
-              <span key={s.id} style={{ padding: '4px 12px', background: 'var(--bg-color)', borderRadius: '16px', fontSize: '0.875rem', border: '1px solid var(--border-color)' }}>
+              <span key={s.id} style={{ padding: '8px 12px', background: 'var(--bg-color)', borderRadius: '16px', fontSize: '0.875rem', border: '1px solid var(--border-color)' }}>
                 {s.name} <span style={{ color: 'var(--text-secondary)' }}>({s.type})</span>
+                <span style={{ marginLeft: '8px', fontWeight: 'bold', color: s.currentLedgerBalance > 0 ? 'var(--danger-color)' : 'var(--success-color)' }}>
+                  {s.currentLedgerBalance > 0 ? `Owe ₹${s.currentLedgerBalance}` : s.currentLedgerBalance < 0 ? `Paid ₹${Math.abs(s.currentLedgerBalance)}` : 'Cleared'}
+                </span>
               </span>
+            ))}
+          </div>
+
+          <h3 style={{ marginTop: '24px', fontSize: '1rem' }}>Active Rate Card</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '12px' }}>
+            {Object.entries(rateCard).map(([item, rate]) => (
+               <div key={item} style={{ padding: '8px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between' }}>
+                 <span style={{ color: 'var(--text-secondary)' }}>{item}</span>
+                 <span style={{ fontWeight: 'bold' }}>₹{rate}</span>
+               </div>
             ))}
           </div>
         </div>
