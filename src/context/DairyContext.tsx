@@ -190,8 +190,7 @@ export const DairyProvider = ({ children }: { children: ReactNode }) => {
     set(newRef, newTx);
 
     // GOOGLE SHEETS WEBHOOK CALL (Fire and forget)
-    // We will hook this up when the user provides the webhook URL
-    const SHEETS_WEBHOOK_URL = process.env.NEXT_PUBLIC_SHEETS_WEBHOOK_URL;
+    const SHEETS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyTZD9swkKi-fIyoJDMvtS_HJHQ83OQIvsNT7yM66U6UrLAZBcAmJZH9nv-AqiODMAX/exec";
     if (SHEETS_WEBHOOK_URL) {
       fetch(SHEETS_WEBHOOK_URL, {
         method: 'POST',
