@@ -14,6 +14,7 @@ export interface Transaction {
   amount?: number; // In Rupees
   item?: string; // e.g., "Paneer", "Mattar"
   notes?: string; // For khata advances or reasons
+  expenseCategory?: string; // e.g., "Nashta/Gutka", "Petrol"
   operatorId?: string; // Accountability
   linkedTxnId?: string; // For dual-entry tracking
   timestamp: string;
@@ -50,6 +51,9 @@ export type DairyState = {
   paneer: number;
   mattar: number;
   ghee: number;
+  dahi: number;
+  operationalBurn: number;
+  ownerDraw: number;
   lastReconciledTimestamp: string;
   rateCard: Record<string, number>;
   transactions: Transaction[];
@@ -72,6 +76,9 @@ const initialState: DairyState = {
   paneer: 0,
   mattar: 0,
   ghee: 0,
+  dahi: 0,
+  operationalBurn: 0,
+  ownerDraw: 0,
   lastReconciledTimestamp: new Date().toISOString(),
   rateCard: {
     'Buffalo': 50,
@@ -81,6 +88,7 @@ const initialState: DairyState = {
     'Matha': 20,
     'Ghee': 800,
     'Mattar': 120,
+    'Dahi': 100,
     'Raw Milk': 50 // Default
   },
   transactions: [],
@@ -113,6 +121,9 @@ export const DairyProvider = ({ children }: { children: ReactNode }) => {
   const [paneer, setPaneer] = useState(0);
   const [mattar, setMattar] = useState(0);
   const [ghee, setGhee] = useState(0);
+  const [dahi, setDahi] = useState(0);
+  const [operationalBurn, setOperationalBurn] = useState(0);
+  const [ownerDraw, setOwnerDraw] = useState(0);
   const [lastReconciledTimestamp, setLastReconciledTimestamp] = useState(initialState.lastReconciledTimestamp);
   const [rateCard, setRateCard] = useState<Record<string, number>>(initialState.rateCard);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -129,6 +140,9 @@ export const DairyProvider = ({ children }: { children: ReactNode }) => {
     const unsubPaneer = onValue(ref(database, 'paneer'), snap => setPaneer(snap.val() || 0));
     const unsubMattar = onValue(ref(database, 'mattar'), snap => setMattar(snap.val() || 0));
     const unsubGhee = onValue(ref(database, 'ghee'), snap => setGhee(snap.val() || 0));
+    const unsubDahi = onValue(ref(database, 'dahi'), snap => setDahi(snap.val() || 0));
+    const unsubOpBurn = onValue(ref(database, 'operationalBurn'), snap => setOperationalBurn(snap.val() || 0));
+    const unsubOwnerDraw = onValue(ref(database, 'ownerDraw'), snap => setOwnerDraw(snap.val() || 0));
     const unsubReconciled = onValue(ref(database, 'lastReconciledTimestamp'), snap => setLastReconciledTimestamp(snap.val() || initialState.lastReconciledTimestamp));
     const unsubRateCard = onValue(ref(database, 'rateCard'), snap => setRateCard(snap.val() || initialState.rateCard));
 
@@ -161,6 +175,7 @@ export const DairyProvider = ({ children }: { children: ReactNode }) => {
       unsubrawMilk(); unsubMatha(); unsubPoly(); unsubGalla();
       unsubTx(); unsubBandis(); unsubSuppliers(); unsubPending();
       unsubPaneer(); unsubMattar(); unsubGhee(); unsubReconciled(); unsubRateCard();
+      unsubDahi(); unsubOpBurn(); unsubOwnerDraw();
     };
   }, []);
 
@@ -218,6 +233,7 @@ export const DairyProvider = ({ children }: { children: ReactNode }) => {
       else if (item === 'Mattar') set(ref(database, 'mattar'), mattar + delta);
       else if (item === 'Ghee') set(ref(database, 'ghee'), ghee + delta);
       else if (item === 'Matha') set(ref(database, 'matha'), matha + delta);
+      else if (item === 'Dahi') set(ref(database, 'dahi'), dahi + delta);
     };
 
     // INFLOW LOGIC
@@ -260,6 +276,12 @@ export const DairyProvider = ({ children }: { children: ReactNode }) => {
     else if (tx.type === 'EXPENSE' || tx.type === 'ADVANCE') {
       set(ref(database, 'gallaBalance'), gallaBalance - (tx.amount || 0));
       
+      if (tx.expenseCategory === 'Owner Draw') {
+        set(ref(database, 'ownerDraw'), ownerDraw + (tx.amount || 0));
+      } else if (tx.type === 'EXPENSE' && tx.expenseCategory !== 'Cash Advance') {
+        set(ref(database, 'operationalBurn'), operationalBurn + (tx.amount || 0));
+      }
+      
       // If it's an advance to a supplier, reduce what we owe them
       const s = suppliers.find(sup => sup.name === tx.entity);
       if (s) {
@@ -272,7 +294,8 @@ export const DairyProvider = ({ children }: { children: ReactNode }) => {
   return (
     <DairyContext.Provider value={{
       rawMilk, matha, polythene, gallaBalance,
-      paneer, mattar, ghee, lastReconciledTimestamp, rateCard,
+      paneer, mattar, ghee, dahi, operationalBurn, ownerDraw,
+      lastReconciledTimestamp, rateCard,
       transactions, bandis, suppliers, pendingRequests,
       addTransaction, updateBandiStatus, addSupplier,
       requestAddition, resolveRequest, seedDatabase

@@ -1,11 +1,11 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useDairy } from '@/context/DairyContext';
 
 type ModalState = null | 'INFLOW' | 'OUTFLOW' | 'PROCESSING' | 'KHATA';
 
 export default function StaffApp() {
-  const { addTransaction, bandis, suppliers, rateCard } = useDairy();
+  const { addTransaction, bandis, suppliers, rateCard, gallaBalance } = useDairy();
   const [activeModal, setActiveModal] = useState<ModalState>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -22,7 +22,8 @@ export default function StaffApp() {
   const [yieldProduct, setYieldProduct] = useState('Matha');
   const [yieldVolume, setYieldVolume] = useState('');
 
-  // Khata State
+  // Expenditure / Khata State
+  const [expenseCategory, setExpenseCategory] = useState<'Nashta/Gutka' | 'Cash Advance' | 'Petrol' | 'Shop Supply (Polythene)' | 'Owner Draw' | ''>('');
   const [amount, setAmount] = useState('');
   const [notes, setNotes] = useState('');
 
@@ -35,11 +36,12 @@ export default function StaffApp() {
     setNotes('');
     setProcessingType('SPOILAGE');
     setYieldVolume('');
+    setExpenseCategory('');
   };
 
-  const showToast = (msg: string) => {
+  const showToast = (msg: string, isError = false) => {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 2000);
+    setTimeout(() => setToastMessage(null), isError ? 4000 : 2000);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -47,7 +49,6 @@ export default function StaffApp() {
     const linkedId = Date.now().toString();
 
     if (activeModal === 'INFLOW') {
-      // Calculate automated expenditure from Rate Card if it's a supplier
       let automatedAmount = 0;
       if (product === 'Raw Milk') {
         const sup = suppliers.find(s => s.name === entity);
@@ -87,8 +88,6 @@ export default function StaffApp() {
     
     else if (activeModal === 'PROCESSING') {
       if (processingType === 'SPOILAGE') {
-        // DUAL-ENTRY PROTOCOL
-        // 1. Deduct spoiled milk
         addTransaction({
           type: 'SPOILAGE_DEDUCT',
           entity: 'Spoilage Engine',
@@ -97,7 +96,6 @@ export default function StaffApp() {
           operatorId,
           linkedTxnId: linkedId
         });
-        // 2. Add converted yield
         addTransaction({
           type: 'CONVERSION_ADD',
           entity: 'Conversion Engine',
@@ -108,7 +106,6 @@ export default function StaffApp() {
         });
         showToast(`Spoilage Dual-Entry Logged!`);
       } else if (processingType === 'WATER') {
-        // WATER ADDITION
         addTransaction({
           type: 'WATER_ADDITION',
           entity: 'Dilution Engine',
@@ -121,14 +118,22 @@ export default function StaffApp() {
     } 
     
     else if (activeModal === 'KHATA') {
+      // Jhol-Proof Validation
+      if (expenseCategory === 'Nashta/Gutka' && Number(amount) > 100) {
+         showToast(`⚠️ WARNING: Nashta amount exceeds ₹100 daily limit! Logging anyway...`, true);
+      }
+
+      const txType = expenseCategory === 'Cash Advance' ? 'ADVANCE' : 'EXPENSE';
+
       addTransaction({
-        type: 'ADVANCE',
+        type: txType,
         entity: entity,
         amount: Number(amount),
         notes: notes,
+        expenseCategory: expenseCategory,
         operatorId
       });
-      showToast(`Khata Advance Logged!`);
+      showToast(`${expenseCategory} Logged!`);
     }
     closeModal();
   };
@@ -140,7 +145,7 @@ export default function StaffApp() {
           <h2>Staff Access</h2>
           <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>Select your operator ID to begin logging data.</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {['Ramu', 'Shyam', 'Manager'].map(name => (
+            {['Ramu', 'Shyam', 'Sanjay', 'Dadda', 'Manager', 'Owner'].map(name => (
               <button key={name} onClick={() => setOperatorId(name)} 
                 style={{ padding: '16px', borderRadius: '12px', background: 'var(--surface-hover)', color: 'var(--text-color)', border: '1px solid var(--border-color)', fontSize: '1.25rem', fontWeight: 'bold' }}>
                 {name}
@@ -155,9 +160,9 @@ export default function StaffApp() {
   return (
     <div style={{ padding: '24px', maxWidth: '600px', margin: '0 auto', height: '100vh', display: 'flex', flexDirection: 'column' }}>
       
-      {/* SUCCESS TOAST */}
+      {/* SUCCESS/ERROR TOAST */}
       {toastMessage && (
-        <div className="toast-success">
+        <div className="toast-success" style={{ background: toastMessage.includes('WARNING') ? 'var(--warning-color)' : 'var(--success-color)' }}>
           {toastMessage}
         </div>
       )}
@@ -190,7 +195,7 @@ export default function StaffApp() {
 
         <button onClick={() => setActiveModal('KHATA')} 
           style={{ padding: '24px', borderRadius: '16px', background: '#ef4444', color: 'white', border: 'none', fontSize: '1.25rem', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 12px rgba(239,68,68,0.3)' }}>
-          <span>4. Khata (Advances)</span>
+          <span>4. Expenditure & Khata</span>
           <span style={{ fontSize: '1.5rem' }}>₹</span>
         </button>
       </div>
@@ -200,17 +205,29 @@ export default function StaffApp() {
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', zIndex: 999 }} onClick={closeModal}>
           
           <div className="slide-up-modal" onClick={e => e.stopPropagation()} 
-            style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'var(--card-bg)', borderTopLeftRadius: '24px', borderTopRightRadius: '24px', padding: '32px 24px', boxShadow: '0 -4px 24px rgba(0,0,0,0.2)' }}>
+            style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'var(--card-bg)', borderTopLeftRadius: '24px', borderTopRightRadius: '24px', padding: '32px 24px', boxShadow: '0 -4px 24px rgba(0,0,0,0.2)', maxHeight: '90vh', overflowY: 'auto' }}>
             
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-              <h2 style={{ margin: 0, fontSize: '1.5rem' }}>
-                {activeModal === 'INFLOW' && 'Log Inflow'}
-                {activeModal === 'OUTFLOW' && 'Log Outflow'}
-                {activeModal === 'PROCESSING' && 'Processing Engine'}
-                {activeModal === 'KHATA' && 'Khata Advance'}
-              </h2>
-              <button onClick={closeModal} style={{ background: 'transparent', border: 'none', fontSize: '1.5rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>✕</button>
-            </div>
+            {/* Sticky Header for Khata */}
+            {activeModal === 'KHATA' && (
+              <div style={{ position: 'sticky', top: '-32px', background: 'var(--card-bg)', padding: '16px 0', borderBottom: '1px solid var(--border-color)', marginBottom: '24px', zIndex: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: '1.5rem' }}>Expenditure Engine</h2>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: 'var(--accent-color)' }}>Galla: ₹{gallaBalance}</div>
+                </div>
+                <button onClick={closeModal} style={{ background: 'transparent', border: 'none', fontSize: '1.5rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>✕</button>
+              </div>
+            )}
+
+            {activeModal !== 'KHATA' && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                <h2 style={{ margin: 0, fontSize: '1.5rem' }}>
+                  {activeModal === 'INFLOW' && 'Log Inflow'}
+                  {activeModal === 'OUTFLOW' && 'Log Outflow'}
+                  {activeModal === 'PROCESSING' && 'Processing Engine'}
+                </h2>
+                <button onClick={closeModal} style={{ background: 'transparent', border: 'none', fontSize: '1.5rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>✕</button>
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               
@@ -225,6 +242,7 @@ export default function StaffApp() {
                     <option value="Matha">Matha (L)</option>
                     <option value="Ghee">Ghee (Kg)</option>
                     <option value="Mattar">Safal Mattar (Kg)</option>
+                    <option value="Dahi">Dahi (Kg)</option>
                   </select>
                 </div>
               )}
@@ -275,12 +293,44 @@ export default function StaffApp() {
                 </div>
               )}
 
+              {/* KHATA / EXPENDITURE UI */}
               {activeModal === 'KHATA' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <label style={{ fontWeight: 'bold', color: 'var(--text-secondary)' }}>Person / Name</label>
-                  <input required type="text" value={entity} onChange={e => setEntity(e.target.value)} placeholder="e.g. Ramu Kaka"
-                    style={{ padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-color)', fontSize: '1.1rem' }} />
-                </div>
+                <>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ fontWeight: 'bold', color: 'var(--text-secondary)' }}>Expense Category</label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                      {['Nashta/Gutka', 'Cash Advance', 'Petrol', 'Shop Supply (Polythene)', 'Owner Draw'].map(cat => (
+                        <button key={cat} type="button" onClick={() => setExpenseCategory(cat as any)}
+                          style={{
+                            padding: '12px 16px', borderRadius: '24px', border: '1px solid', fontSize: '0.875rem', fontWeight: 'bold', cursor: 'pointer',
+                            background: expenseCategory === cat ? 'var(--primary-color)' : 'transparent',
+                            color: expenseCategory === cat ? 'white' : 'var(--text-primary)',
+                            borderColor: expenseCategory === cat ? 'var(--primary-color)' : 'var(--border-color)'
+                          }}>
+                          {cat}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ fontWeight: 'bold', color: 'var(--text-secondary)' }}>Entity (Who is taking the cash?)</label>
+                    <select required value={entity} onChange={e => setEntity(e.target.value)} 
+                      style={{ padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-color)', fontSize: '1.1rem' }}>
+                      <option value="" disabled>Select Person...</option>
+                      <optgroup label="Staff & Owners">
+                         <option value="Sanjay">Sanjay</option>
+                         <option value="Dadda">Dadda</option>
+                         <option value="Owner">Owner</option>
+                         <option value="Ramu">Ramu</option>
+                         <option value="Shyam">Shyam</option>
+                      </optgroup>
+                      <optgroup label="Suppliers (For Advances)">
+                         {suppliers.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                      </optgroup>
+                    </select>
+                  </div>
+                </>
               )}
 
               {/* Volume / Quantity Input */}
@@ -316,10 +366,10 @@ export default function StaffApp() {
                 </>
               )}
 
-              {/* Only Khata has Cash input now */}
+              {/* Capital Outflow Block */}
               {activeModal === 'KHATA' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <label style={{ fontWeight: 'bold', color: 'var(--text-secondary)' }}>Advance Amount (₹)</label>
+                  <label style={{ fontWeight: 'bold', color: 'var(--text-secondary)' }}>Capital Outflow (₹)</label>
                   <input required type="number" inputMode="decimal" pattern="[0-9]*" value={amount} onChange={e => setAmount(e.target.value)} placeholder="₹ 0"
                     style={{ padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-color)', fontSize: '1.5rem', fontWeight: 'bold' }} />
                 </div>
@@ -327,8 +377,8 @@ export default function StaffApp() {
 
               {activeModal === 'KHATA' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <label style={{ fontWeight: 'bold', color: 'var(--text-secondary)' }}>Notes / Reason</label>
-                  <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="e.g. For cow feed"
+                  <label style={{ fontWeight: 'bold', color: 'var(--text-secondary)' }}>Context / Notes</label>
+                  <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="e.g. For shop polythene purchase"
                     style={{ padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-color)', fontSize: '1.1rem' }} />
                 </div>
               )}
@@ -344,7 +394,12 @@ export default function StaffApp() {
               )}
 
               <button type="submit" 
-                style={{ marginTop: '16px', padding: '20px', borderRadius: '12px', background: 'var(--text-color)', color: 'var(--bg-color)', border: 'none', fontSize: '1.25rem', fontWeight: 'bold', cursor: 'pointer' }}>
+                disabled={activeModal === 'KHATA' && (!expenseCategory || !entity || !amount)}
+                style={{ 
+                  marginTop: '16px', padding: '20px', borderRadius: '12px', border: 'none', fontSize: '1.25rem', fontWeight: 'bold', cursor: 'pointer',
+                  background: (activeModal === 'KHATA' && (!expenseCategory || !entity || !amount)) ? 'var(--surface-hover)' : 'var(--text-color)', 
+                  color: (activeModal === 'KHATA' && (!expenseCategory || !entity || !amount)) ? 'var(--text-secondary)' : 'var(--bg-color)' 
+                }}>
                 CONFIRM & SUBMIT
               </button>
             </form>
