@@ -1,48 +1,41 @@
-"use client";
-
+'use client';
 import { useState } from "react";
 import { useDairy } from "@/context/DairyContext";
 
 export default function Dashboard() {
-  const { rawMilk, matha, polythene, gallaBalance, bandis, transactions, addSupplier, suppliers, pendingRequests, resolveRequest, seedDatabase } = useDairy();
+  const { rawMilk, matha, polythene, gallaBalance, paneer, mattar, ghee, bandis, transactions, addSupplier, suppliers, pendingRequests, resolveRequest, seedDatabase } = useDairy();
   const [newSupplierName, setNewSupplierName] = useState("");
   const [newSupplierType, setNewSupplierType] = useState("Buffalo");
   
-  // Owner Auth State
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pin, setPin] = useState("");
-  const OWNER_PIN = "1234"; // Default PIN for testing
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   const handleAddSupplier = (e: React.FormEvent) => {
     e.preventDefault();
     if (newSupplierName) {
       addSupplier(newSupplierName, newSupplierType);
       setNewSupplierName("");
-      alert("Supplier added successfully!");
     }
   };
+
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (pin === OWNER_PIN) setIsAuthenticated(true);
-    else alert("Incorrect PIN!");
+    if (pin === "1234") {
+      setIsAuthenticated(true);
+    } else {
+      alert("Incorrect PIN");
+    }
   };
 
   if (!isAuthenticated) {
     return (
-      <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '80vh' }}>
-        <div className="card" style={{ maxWidth: '400px', width: '100%', textAlign: 'center' }}>
-          <h2 className="text-gradient" style={{ marginBottom: '24px' }}>Owner Access</h2>
-          <form onSubmit={handleLogin}>
-            <input 
-              type="password" 
-              className="form-control" 
-              placeholder="Enter PIN (1234)" 
-              value={pin}
-              onChange={e => setPin(e.target.value)}
-              style={{ textAlign: 'center', fontSize: '1.5rem', letterSpacing: '4px', marginBottom: '16px' }}
-              required 
-            />
-            <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Unlock Dashboard</button>
+      <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+        <div className="card" style={{ width: '100%', maxWidth: '400px', textAlign: 'center' }}>
+          <h2>Owner Login</h2>
+          <p className="form-label" style={{ marginBottom: '24px' }}>Enter PIN to access dashboard</p>
+          <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <input type="password" placeholder="Enter PIN (1234)" className="form-control" value={pin} onChange={e => setPin(e.target.value)} required />
+            <button type="submit" className="btn btn-primary">Login</button>
           </form>
         </div>
       </div>
@@ -51,13 +44,13 @@ export default function Dashboard() {
 
   // Calculate Totals for Today
   const todayTransactions = transactions.filter(tx => new Date(tx.timestamp).toDateString() === new Date().toDateString());
-  const totalInflow = todayTransactions.filter(tx => tx.type === 'INFLOW').reduce((sum, tx) => sum + (tx.volume || 0), 0);
-  const totalOutflow = todayTransactions.filter(tx => tx.type === 'OUTFLOW').reduce((sum, tx) => sum + (tx.volume || 0), 0);
+  const totalInflow = todayTransactions.filter(tx => tx.type === 'INFLOW' && (!tx.item || tx.item === 'Raw Milk')).reduce((sum, tx) => sum + (tx.volume || 0), 0);
+  const totalOutflowBandi = todayTransactions.filter(tx => tx.type === 'OUTFLOW' && (!tx.item || tx.item === 'Raw Milk')).reduce((sum, tx) => sum + (tx.volume || 0), 0);
   const totalExpenses = todayTransactions.filter(tx => tx.type === 'EXPENSE').reduce((sum, tx) => sum + (tx.amount || 0), 0);
 
   return (
-    <div className="animate-fade-in" style={{ maxWidth: '1000px', margin: '0 auto' }}>
-      <h1 className="text-gradient" style={{ textAlign: 'center', marginBottom: '8px' }}>Owner Analytics Dashboard</h1>
+    <div className="animate-fade-in" style={{ maxWidth: '1000px', margin: '0 auto', paddingBottom: '40px' }}>
+      <h1 className="text-gradient" style={{ textAlign: 'center', margin: '24px 0 8px 0' }}>Owner Analytics Dashboard</h1>
       <p style={{ textAlign: 'center', color: 'var(--text-secondary)', marginBottom: '32px' }}>Live track record & ledger</p>
 
       {/* DATABASE SETUP WARNING */}
@@ -71,21 +64,95 @@ export default function Dashboard() {
 
       {/* QUICK STATS */}
       <div className="grid-dashboard" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', marginBottom: '24px' }}>
-        <div className="card" style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Today's Total Inflow</div>
+        <div className="card" style={{ textAlign: 'center', borderTop: '4px solid #3b82f6' }}>
+          <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Today's Village Milk (In)</div>
           <div className="text-gradient" style={{ fontSize: '2rem', fontWeight: 'bold' }}>{totalInflow} L</div>
         </div>
-        <div className="card" style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Today's Total Outflow</div>
-          <div className="text-gradient" style={{ fontSize: '2rem', fontWeight: 'bold' }}>{totalOutflow} L</div>
+        <div className="card" style={{ textAlign: 'center', borderTop: '4px solid #f59e0b' }}>
+          <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Today's Bandi Milk (Out)</div>
+          <div className="text-gradient" style={{ fontSize: '2rem', fontWeight: 'bold' }}>{totalOutflowBandi} L</div>
         </div>
-        <div className="card" style={{ textAlign: 'center' }}>
+        <div className="card" style={{ textAlign: 'center', borderTop: '4px solid var(--danger-color)' }}>
           <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Today's Expenses</div>
           <div style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--danger-color)' }}>₹{totalExpenses}</div>
         </div>
-        <div className="card" style={{ textAlign: 'center' }}>
+        <div className="card" style={{ textAlign: 'center', borderTop: '4px solid var(--success-color)' }}>
           <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Live Cash Balance</div>
           <div style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--success-color)' }}>₹{gallaBalance}</div>
+        </div>
+      </div>
+
+      {/* MULTI-PRODUCT INVENTORY */}
+      <h2 style={{ marginTop: '32px', marginBottom: '16px' }}>Live Inventory</h2>
+      <div className="grid-dashboard" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', marginBottom: '24px' }}>
+        <div className="card stat-card">
+          <span className="stat-label">Raw Milk</span>
+          <span className="stat-value">{rawMilk} L</span>
+        </div>
+        <div className="card stat-card">
+          <span className="stat-label">Paneer</span>
+          <span className="stat-value">{paneer} Kg</span>
+        </div>
+        <div className="card stat-card">
+          <span className="stat-label">Safal Mattar</span>
+          <span className="stat-value">{mattar} Kg</span>
+        </div>
+        <div className="card stat-card">
+          <span className="stat-label">Ghee</span>
+          <span className="stat-value">{ghee} Kg</span>
+        </div>
+        <div className="card stat-card">
+          <span className="stat-label">Matha (Buttermilk)</span>
+          <span className="stat-value">{matha} L</span>
+        </div>
+      </div>
+
+      {/* ANALYTICS SHEET TABLE */}
+      <div className="card" style={{ display: 'flex', flexDirection: 'column', marginBottom: '24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <h2>Live Ledger (Sheets View)</h2>
+        </div>
+        
+        <div style={{ overflowX: 'auto', maxHeight: '400px', overflowY: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '600px' }}>
+            <thead style={{ position: 'sticky', top: 0, background: 'var(--card-bg)' }}>
+              <tr style={{ borderBottom: '2px solid var(--border-color)', color: 'var(--text-secondary)' }}>
+                <th style={{ padding: '12px' }}>Date & Time</th>
+                <th style={{ padding: '12px' }}>Type</th>
+                <th style={{ padding: '12px' }}>Product</th>
+                <th style={{ padding: '12px' }}>Entity</th>
+                <th style={{ padding: '12px', textAlign: 'right' }}>Qty</th>
+                <th style={{ padding: '12px', textAlign: 'right' }}>Cash (₹)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {transactions.map(tx => (
+                <tr key={tx.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                  <td style={{ padding: '12px', fontSize: '0.875rem' }}>{new Date(tx.timestamp).toLocaleString()}</td>
+                  <td style={{ padding: '12px' }}>
+                    <span style={{
+                      padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold',
+                      background: tx.type === 'INFLOW' ? '#10b98120' : tx.type === 'OUTFLOW' ? '#3b82f620' : tx.type === 'EXPENSE' ? '#ef444420' : '#f59e0b20',
+                      color: tx.type === 'INFLOW' ? '#10b981' : tx.type === 'OUTFLOW' ? '#3b82f6' : tx.type === 'EXPENSE' ? '#ef4444' : '#f59e0b'
+                    }}>
+                      {tx.type}
+                    </span>
+                  </td>
+                  <td style={{ padding: '12px', fontWeight: 'bold', color: 'var(--text-secondary)' }}>{tx.item || 'Raw Milk'}</td>
+                  <td style={{ padding: '12px', fontWeight: 500 }}>{tx.entity}</td>
+                  <td style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold' }}>{tx.volume ? `${tx.volume}` : '-'}</td>
+                  <td style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold', color: tx.type === 'EXPENSE' ? 'var(--danger-color)' : (tx.amount ? 'var(--success-color)' : 'inherit') }}>
+                    {tx.amount ? `₹${tx.amount}` : '-'}
+                  </td>
+                </tr>
+              ))}
+              {transactions.length === 0 && (
+                <tr>
+                  <td colSpan={6} style={{ padding: '24px', textAlign: 'center', color: 'var(--text-secondary)' }}>No transactions logged yet.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 

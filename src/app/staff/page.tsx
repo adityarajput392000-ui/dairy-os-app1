@@ -6,17 +6,12 @@ import { useDairy } from '@/context/DairyContext';
 export default function StaffApp() {
   const { addTransaction, bandis, suppliers, requestAddition } = useDairy();
   const [activeSection, setActiveSection] = useState<string | null>(null);
-
-  // Inflow State
-  const [supplier, setSupplier] = useState('');
-  const [inflowVolume, setInflowVolume] = useState('');
+  const [product, setProduct] = useState<'Raw Milk' | 'Paneer' | 'Mattar' | 'Matha' | 'Ghee'>('Raw Milk');
   
-  // Outflow State
-  const [bandi, setBandi] = useState('');
-  const [outflowVolume, setOutflowVolume] = useState('');
-
-  // Spoilage State
-  const [spoiledVolume, setSpoiledVolume] = useState('');
+  const [selectedSupplier, setSelectedSupplier] = useState("");
+  const [selectedBandi, setSelectedBandi] = useState("");
+  const [volume, setVolume] = useState("");
+  const [amount, setAmount] = useState("");
 
   // Expense State
   const [expensePerson, setExpensePerson] = useState('');
@@ -26,7 +21,7 @@ export default function StaffApp() {
   // Request State
   const [requestMode, setRequestMode] = useState<null | 'SUPPLIER' | 'BANDI'>(null);
   const [reqName, setReqName] = useState('');
-  const [reqDetail, setReqDetail] = useState(''); // Type for supplier, Liters for bandi
+  const [reqDetail, setReqDetail] = useState('');
 
   const handleRequest = (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,10 +36,14 @@ export default function StaffApp() {
 
   const handleInflow = (e: React.FormEvent) => {
     e.preventDefault();
-    addTransaction({ type: 'INFLOW', entity: supplier, volume: Number(inflowVolume) });
-    setSupplier(''); setInflowVolume('');
-    setActiveSection(null);
-    alert('Milk Received Logged Successfully');
+    addTransaction({
+      type: 'INFLOW',
+      entity: product === 'Raw Milk' ? selectedSupplier : 'Factory/Purchase',
+      item: product,
+      volume: Number(volume),
+    });
+    setVolume("");
+    alert(`${product} Inflow Logged!`);
   };
 
   const handleQuickDispatch = (bandiName: string, liters: number) => {
@@ -54,16 +53,22 @@ export default function StaffApp() {
 
   const handleOutflow = (e: React.FormEvent) => {
     e.preventDefault();
-    addTransaction({ type: 'OUTFLOW', entity: bandi, volume: Number(outflowVolume) });
-    setBandi(''); setOutflowVolume('');
+    addTransaction({ 
+        type: 'OUTFLOW', 
+        entity: product === 'Raw Milk' ? selectedBandi : 'Direct Sale', 
+        item: product,
+        volume: Number(volume),
+        amount: Number(amount) || 0
+    });
+    setVolume(''); setAmount('');
     setActiveSection(null);
-    alert('Custom Dispatch Logged Successfully');
+    alert('Dispatch Logged Successfully');
   };
 
   const handleSpoilage = (e: React.FormEvent) => {
     e.preventDefault();
-    addTransaction({ type: 'SPOILAGE', entity: 'Spoilage Conversion', volume: Number(spoiledVolume) });
-    setSpoiledVolume('');
+    addTransaction({ type: 'SPOILAGE', entity: 'Spoilage Conversion', volume: Number(volume) });
+    setVolume('');
     setActiveSection(null);
     alert('Spoilage Converted to Matha Successfully');
   };
@@ -91,22 +96,41 @@ export default function StaffApp() {
           </button>
           
           {activeSection === 'INFLOW' && (
-            <form onSubmit={handleInflow} style={{ marginTop: '24px' }}>
-              <div className="form-group">
-                <label className="form-label">Select Supplier</label>
-                <select className="form-control form-select" required value={supplier} onChange={e => setSupplier(e.target.value)}>
-                  <option value="" disabled>Select...</option>
-                  {suppliers.map(s => (
-                    <option key={s.id} value={`${s.name} (${s.type})`}>{s.name} ({s.type})</option>
-                  ))}
+            <div className="card" style={{ marginTop: '24px' }}>
+              <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                🥛 Log Inflow (Receive)
+              </h2>
+              
+              <div className="form-group" style={{ marginTop: '16px' }}>
+                <label className="form-label">Select Product</label>
+                <select className="form-control form-select" value={product} onChange={e => setProduct(e.target.value as any)}>
+                  <option value="Raw Milk">Raw Milk (L)</option>
+                  <option value="Paneer">Paneer (Kg)</option>
+                  <option value="Matha">Matha (L)</option>
+                  <option value="Ghee">Ghee (Kg)</option>
+                  <option value="Mattar">Safal Mattar (Kg)</option>
                 </select>
               </div>
+
+              {product === 'Raw Milk' && (
+                <div className="form-group">
+                  <label className="form-label">Select Supplier</label>
+                  <select className="form-control form-select" value={selectedSupplier} onChange={e => setSelectedSupplier(e.target.value)}>
+                    <option value="">Select...</option>
+                    {suppliers.map(s => (
+                      <option key={s.id} value={s.name}>{s.name} ({s.type})</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div className="form-group">
-                <label className="form-label">Quantity (Liters)</label>
-                <input type="number" className="form-control" required value={inflowVolume} onChange={e => setInflowVolume(e.target.value)} />
+                <label className="form-label">Quantity ({product === 'Raw Milk' || product === 'Matha' ? 'Liters' : 'Kg'})</label>
+                <input type="number" className="form-control" value={volume} onChange={e => setVolume(e.target.value)} />
               </div>
-              <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Submit Inflow</button>
-            </form>
+
+              <button onClick={handleInflow} className="btn btn-primary" style={{ width: '100%' }}>Submit Inflow</button>
+            </div>
           )}
         </div>
 
@@ -131,29 +155,51 @@ export default function StaffApp() {
                     style={{ flex: 1, borderColor: b.receivedToday ? 'var(--accent-color)' : '', color: b.receivedToday ? 'var(--accent-color)' : '' }}>
                     {b.receivedToday ? `✅ ${b.name} (${b.expectedLiters}L)` : `Dispatch ${b.name} (${b.expectedLiters}L)`}
                   </button>
-                  <button onClick={() => setBandi(b.name)} className="btn btn-outline" style={{ padding: '12px' }}>✏️</button>
                 </div>
               ))}
 
               <hr style={{ borderColor: 'var(--border-color)', margin: '16px 0' }} />
-              <p className="form-label">Custom Dispatch / Edit</p>
               
-              <form onSubmit={handleOutflow}>
-                <div className="form-group">
-                  <label className="form-label">Select Bandi</label>
-                  <select className="form-control form-select" required value={bandi} onChange={e => setBandi(e.target.value)}>
-                    <option value="" disabled>Select...</option>
-                    {bandis.map(b => (
-                      <option key={b.name} value={b.name}>{b.name}</option>
-                    ))}
+              <div className="card" style={{ marginTop: '24px' }}>
+                <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  🚚 Log Outflow (Dispatch / Sale)
+                </h2>
+
+                <div className="form-group" style={{ marginTop: '16px' }}>
+                  <label className="form-label">Select Product</label>
+                  <select className="form-control form-select" value={product} onChange={e => setProduct(e.target.value as any)}>
+                    <option value="Raw Milk">Raw Milk (L)</option>
+                    <option value="Paneer">Paneer (Kg)</option>
+                    <option value="Matha">Matha (L)</option>
+                    <option value="Ghee">Ghee (Kg)</option>
+                    <option value="Mattar">Safal Mattar (Kg)</option>
                   </select>
                 </div>
+                
+                {product === 'Raw Milk' && (
+                  <div className="form-group">
+                    <label className="form-label">Select Bandi (Vendor)</label>
+                    <select className="form-control form-select" value={selectedBandi} onChange={e => setSelectedBandi(e.target.value)}>
+                      <option value="">Select...</option>
+                      {bandis.map((b, i) => (
+                        <option key={i} value={b.name}>{b.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
                 <div className="form-group">
-                  <label className="form-label">Custom Quantity (Liters)</label>
-                  <input type="number" className="form-control" required value={outflowVolume} onChange={e => setOutflowVolume(e.target.value)} />
+                  <label className="form-label">Quantity ({product === 'Raw Milk' || product === 'Matha' ? 'Liters' : 'Kg'})</label>
+                  <input type="number" className="form-control" value={volume} onChange={e => setVolume(e.target.value)} />
                 </div>
-                <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Submit Custom Dispatch</button>
-              </form>
+                
+                <div className="form-group">
+                  <label className="form-label">Cash Received (₹) - Optional</label>
+                  <input type="number" className="form-control" value={amount} onChange={e => setAmount(e.target.value)} />
+                </div>
+
+                <button onClick={handleOutflow} className="btn btn-primary" style={{ width: '100%' }}>Submit Outflow</button>
+              </div>
             </div>
           )}
         </div>

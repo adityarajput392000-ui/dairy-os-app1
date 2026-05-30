@@ -37,11 +37,14 @@ export interface PendingRequest {
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
 }
 
-interface DairyState {
+export type DairyState = {
   rawMilk: number;
   matha: number;
   polythene: number;
   gallaBalance: number;
+  paneer: number;
+  mattar: number;
+  ghee: number;
   transactions: Transaction[];
   bandis: Bandi[];
   suppliers: Supplier[];
@@ -59,6 +62,9 @@ const initialState: DairyState = {
   matha: 0,
   polythene: 1000,
   gallaBalance: 5000, // starting float
+  paneer: 0,
+  mattar: 0,
+  ghee: 0,
   transactions: [],
   bandis: [
     { name: 'Sharma Ji', expectedLiters: 50, receivedToday: false },
@@ -86,6 +92,9 @@ export const DairyProvider = ({ children }: { children: ReactNode }) => {
   const [matha, setMatha] = useState(0);
   const [polythene, setPolythene] = useState(0);
   const [gallaBalance, setGallaBalance] = useState(0);
+  const [paneer, setPaneer] = useState(0);
+  const [mattar, setMattar] = useState(0);
+  const [ghee, setGhee] = useState(0);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [bandis, setBandis] = useState<Bandi[]>(initialState.bandis);
   const [suppliers, setSuppliers] = useState<Supplier[]>(initialState.suppliers);
@@ -97,6 +106,9 @@ export const DairyProvider = ({ children }: { children: ReactNode }) => {
     const unsubMatha = onValue(ref(database, 'matha'), snap => setMatha(snap.val() || 0));
     const unsubPoly = onValue(ref(database, 'polythene'), snap => setPolythene(snap.val() || 0));
     const unsubGalla = onValue(ref(database, 'gallaBalance'), snap => setGallaBalance(snap.val() || 0));
+    const unsubPaneer = onValue(ref(database, 'paneer'), snap => setPaneer(snap.val() || 0));
+    const unsubMattar = onValue(ref(database, 'mattar'), snap => setMattar(snap.val() || 0));
+    const unsubGhee = onValue(ref(database, 'ghee'), snap => setGhee(snap.val() || 0));
 
     const unsubTx = onValue(ref(database, 'transactions'), snap => {
       const data = snap.val();
@@ -126,6 +138,7 @@ export const DairyProvider = ({ children }: { children: ReactNode }) => {
 
     return () => {
       unsubrawMilk(); unsubMatha(); unsubPoly(); unsubGalla();
+      unsubPaneer(); unsubMattar(); unsubGhee();
       unsubTx(); unsubBandis(); unsubSuppliers(); unsubPending();
     };
   }, []);
@@ -200,18 +213,33 @@ export const DairyProvider = ({ children }: { children: ReactNode }) => {
       }).catch(err => console.error("Sheets webhook failed", err));
     }
 
-    // Update balances atomically (simplified)
+    // Update balances atomically
+    const itemName = tx.item || 'Raw Milk';
+    
     if (tx.type === 'INFLOW') {
-      set(ref(database, 'rawMilk'), rawMilk + (tx.volume || 0));
+      if (itemName === 'Raw Milk') set(ref(database, 'rawMilk'), rawMilk + (tx.volume || 0));
+      if (itemName === 'Paneer') set(ref(database, 'paneer'), paneer + (tx.volume || 0));
+      if (itemName === 'Mattar') set(ref(database, 'mattar'), mattar + (tx.volume || 0));
+      if (itemName === 'Matha') set(ref(database, 'matha'), matha + (tx.volume || 0));
+      if (itemName === 'Ghee') set(ref(database, 'ghee'), ghee + (tx.volume || 0));
     } else if (tx.type === 'OUTFLOW') {
-      set(ref(database, 'rawMilk'), rawMilk - (tx.volume || 0));
+      if (itemName === 'Raw Milk') set(ref(database, 'rawMilk'), rawMilk - (tx.volume || 0));
+      if (itemName === 'Paneer') set(ref(database, 'paneer'), paneer - (tx.volume || 0));
+      if (itemName === 'Mattar') set(ref(database, 'mattar'), mattar - (tx.volume || 0));
+      if (itemName === 'Matha') set(ref(database, 'matha'), matha - (tx.volume || 0));
+      if (itemName === 'Ghee') set(ref(database, 'ghee'), ghee - (tx.volume || 0));
+      
       if (tx.amount) {
         set(ref(database, 'gallaBalance'), gallaBalance + tx.amount);
       }
-      updateBandiStatus(tx.entity, true);
+      if (itemName === 'Raw Milk') {
+        updateBandiStatus(tx.entity, true);
+      }
     } else if (tx.type === 'SPOILAGE') {
-      set(ref(database, 'rawMilk'), rawMilk - (tx.volume || 0));
-      set(ref(database, 'matha'), matha + (tx.volume || 0));
+      if (itemName === 'Raw Milk') {
+        set(ref(database, 'rawMilk'), rawMilk - (tx.volume || 0));
+        set(ref(database, 'matha'), matha + (tx.volume || 0));
+      }
     } else if (tx.type === 'EXPENSE') {
       set(ref(database, 'gallaBalance'), gallaBalance - (tx.amount || 0));
     }
@@ -223,6 +251,9 @@ export const DairyProvider = ({ children }: { children: ReactNode }) => {
       matha,
       polythene,
       gallaBalance,
+      paneer,
+      mattar,
+      ghee,
       transactions,
       bandis,
       suppliers,
